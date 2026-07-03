@@ -30,6 +30,7 @@ export async function POST(request) {
       { status: 201 }
     );
   } catch (err) {
+    console.error("REGISTER ERROR:", err);
     return NextResponse.json({ message: "Gagal registrasi.", error: err.message }, { status: 500 });
   }
 }

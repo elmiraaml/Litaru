@@ -5,87 +5,88 @@ import { Camera, BookOpen, Clock, CheckCircle2 } from "lucide-react";
 import SidebarUser from "@/components/SidebarUser";
 import NavbarUser from "@/components/NavbarUser";
 import Footer from "@/components/Footer";
+import { api } from "@/lib/api.js";
 
 const NAVY = "#060771";
 
-const stats = [
-  { label: "Sedang Dipinjam", value: 3, icon: BookOpen },
-  { label: "Menunggu Persetujuan", value: 2, icon: Clock },
-  { label: "Total Selesai", value: 18, icon: CheckCircle2 },
-];
-
 export default function ProfilePage() {
   const [user, setUser] = useState(null);
-  const [form, setForm] = useState({ name: "", email: "", phone: "", nis: "" });
+  const [form, setForm] = useState({ name: "", email: "", phone: "" });
+  const [stats, setStats] = useState({ borrowed: 0, pending: 0, returned: 0 });
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    try {
-      const stored = JSON.parse(localStorage.getItem("user"));
-      if (stored) {
-        setUser(stored);
-        setForm({
-          name: stored.name || "Elmira Meisha",
-          email: stored.email || "elmira@tarunabhakti.sch.id",
-          phone: stored.phone || "0812xxxxxxx",
-          nis: stored.nis || "2324.10.045",
-        });
-      } else {
-        setForm({ name: "Elmira Meisha", email: "elmira@tarunabhakti.sch.id", phone: "0812xxxxxxx", nis: "2324.10.045" });
+    async function load() {
+      try {
+        const me = await api("/users/me");
+        if (me?.id) {
+          setUser(me);
+          setForm({ name: me.name || "", email: me.email || "", phone: me.phone || "" });
+          localStorage.setItem("user", JSON.stringify(me));
+        }
+      } catch (err) {
+        console.error("Gagal memuat profil:", err);
       }
-    } catch {}
+
+      const loans = await api("/loans");
+      if (Array.isArray(loans)) {
+        setStats({
+          borrowed: loans.filter((l) => l.status === "borrowed").length,
+          pending: loans.filter((l) => l.status === "pending" || l.status === "approved").length,
+          returned: loans.filter((l) => l.status === "returned").length,
+        });
+      }
+    }
+    load();
   }, []);
 
-  const handleSave = (e) => {
+  const handleSave = async (e) => {
     e.preventDefault();
-    localStorage.setItem("user", JSON.stringify({ ...user, ...form }));
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+    setError("");
+    setSaving(true);
+    try {
+      const res = await api("/users/me", {
+        method: "PUT",
+        body: JSON.stringify({ name: form.name, phone: form.phone }),
+      });
+      if (res.user) {
+        setUser(res.user);
+        localStorage.setItem("user", JSON.stringify(res.user));
+        setSaved(true);
+        setTimeout(() => setSaved(false), 2000);
+      } else {
+        setError(res.message || "Gagal menyimpan perubahan.");
+      }
+    } catch {
+      setError("Terjadi kesalahan koneksi.");
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const initial = form.name.charAt(0).toUpperCase();
+  const stats_display = [
+    { label: "Sedang Dipinjam", value: stats.borrowed, icon: BookOpen },
+    { label: "Menunggu Persetujuan", value: stats.pending, icon: Clock },
+    { label: "Total Selesai", value: stats.returned, icon: CheckCircle2 },
+  ];
+
+  const initial = form.name.charAt(0).toUpperCase() || "S";
 
   return (
     <div style={{ display: "flex", minHeight: "100vh", background: "#f8faff", fontFamily: "'Inter', sans-serif" }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
         * { box-sizing: border-box; }
-        .pf-input {
-          width: 100%;
-          padding: 11px 14px;
-          border-radius: 10px;
-          border: 1.5px solid #e5e7eb;
-          font-size: 13.5px;
-          outline: none;
-          color: ${NAVY};
-          transition: border-color .2s;
-        }
+        .pf-input { width: 100%; padding: 11px 14px; border-radius: 10px; border: 1.5px solid #e5e7eb; font-size: 13.5px; outline: none; color: ${NAVY}; transition: border-color .2s; }
         .pf-input:focus { border-color: ${NAVY}; }
         .pf-input:disabled { background: #f8faff; color: #9ca3af; }
         .pf-label { display: block; font-size: 12.5px; font-weight: 600; color: #374151; margin-bottom: 6px; }
-        .pf-btn {
-          padding: 12px 28px;
-          border-radius: 24px;
-          border: none;
-          background: ${NAVY};
-          color: #fff;
-          font-size: 13.5px;
-          font-weight: 700;
-          cursor: pointer;
-          transition: opacity .2s;
-        }
+        .pf-btn { padding: 12px 28px; border-radius: 24px; border: none; background: ${NAVY}; color: #fff; font-size: 13.5px; font-weight: 700; cursor: pointer; transition: opacity .2s; }
         .pf-btn:hover { opacity: .92; }
-        .stat-card {
-          flex: 1;
-          background: #fff;
-          border: 1px solid #eef0f5;
-          border-radius: 16px;
-          padding: 20px;
-          display: flex;
-          align-items: center;
-          gap: 14px;
-          min-width: 180px;
-        }
+        .pf-btn:disabled { opacity: .6; cursor: not-allowed; }
+        .stat-card { flex: 1; background: #fff; border: 1px solid #eef0f5; border-radius: 16px; padding: 20px; display: flex; align-items: center; gap: 14px; min-width: 180px; }
         .profile-grid { display: grid; grid-template-columns: 320px 1fr; gap: 24px; align-items: start; }
         @media (max-width: 900px) { .profile-grid { grid-template-columns: 1fr; } }
       `}</style>
@@ -102,7 +103,7 @@ export default function ProfilePage() {
           <h1 style={{ fontSize: 26, fontWeight: 800, color: "#111827", margin: "0 0 28px" }}>Profil</h1>
 
           <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 28 }}>
-            {stats.map((s) => (
+            {stats_display.map((s) => (
               <div key={s.label} className="stat-card">
                 <div style={{ width: 44, height: 44, borderRadius: 12, background: "#eef0fb", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                   <s.icon size={19} color={NAVY} />
@@ -122,18 +123,14 @@ export default function ProfilePage() {
                 <div style={{ width: 96, height: 96, borderRadius: "50%", background: NAVY, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 34, fontWeight: 800 }}>
                   {initial}
                 </div>
-                <button
-                  type="button"
-                  aria-label="Ganti foto"
-                  style={{ position: "absolute", bottom: 0, right: 0, width: 30, height: 30, borderRadius: "50%", background: "#fff", border: "1.5px solid #e5e7eb", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}
-                >
+                <button type="button" aria-label="Ganti foto" style={{ position: "absolute", bottom: 0, right: 0, width: 30, height: 30, borderRadius: "50%", background: "#fff", border: "1.5px solid #e5e7eb", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
                   <Camera size={14} color={NAVY} />
                 </button>
               </div>
               <div style={{ fontSize: 16, fontWeight: 800, color: "#111827" }}>{form.name}</div>
               <div style={{ fontSize: 12.5, color: "#9ca3af", marginTop: 2 }}>{form.email}</div>
               <div style={{ marginTop: 14, display: "inline-flex", fontSize: 11, fontWeight: 700, color: NAVY, background: "#eef0fb", padding: "5px 12px", borderRadius: 20, textTransform: "uppercase", letterSpacing: "0.04em" }}>
-                Siswa SMK Taruna Bhakti
+                {user?.role === "admin" ? "Admin" : "Siswa SMK Taruna Bhakti"}
               </div>
             </div>
 
@@ -146,6 +143,11 @@ export default function ProfilePage() {
                   ✓ Perubahan berhasil disimpan.
                 </div>
               )}
+              {error && (
+                <div style={{ marginBottom: 18, background: "#fef2f2", border: "1px solid #fca5a5", color: "#b91c1c", borderRadius: 10, padding: "10px 14px", fontSize: 12.5, fontWeight: 600 }}>
+                  {error}
+                </div>
+              )}
 
               <form onSubmit={handleSave} style={{ display: "flex", flexDirection: "column", gap: 18 }}>
                 <div>
@@ -153,24 +155,21 @@ export default function ProfilePage() {
                   <input className="pf-input" type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
                 </div>
 
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-                  <div>
-                    <label className="pf-label">NIS</label>
-                    <input className="pf-input" type="text" value={form.nis} disabled />
-                  </div>
-                  <div>
-                    <label className="pf-label">Nomor Telepon</label>
-                    <input className="pf-input" type="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
-                  </div>
+                <div>
+                  <label className="pf-label">Nomor Telepon</label>
+                  <input className="pf-input" type="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
                 </div>
 
                 <div>
                   <label className="pf-label">Email</label>
-                  <input className="pf-input" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+                  <input className="pf-input" type="email" value={form.email} disabled />
+                  <p style={{ fontSize: 11, color: "#9ca3af", marginTop: 6 }}>Email tidak bisa diubah karena dipakai untuk login.</p>
                 </div>
 
                 <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 8 }}>
-                  <button type="submit" className="pf-btn">Simpan Perubahan</button>
+                  <button type="submit" className="pf-btn" disabled={saving}>
+                    {saving ? "Menyimpan..." : "Simpan Perubahan"}
+                  </button>
                 </div>
               </form>
             </div>

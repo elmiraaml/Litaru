@@ -7,6 +7,7 @@ import {
   BookOpen,
   ClipboardList,
   History,
+  Heart,
   UserCircle,
   LogOut,
 } from "lucide-react";
@@ -18,6 +19,7 @@ const menu = [
   { label: "Katalog", href: "/user/catalog", icon: BookOpen },
   { label: "Peminjaman", href: "/user/peminjaman", icon: ClipboardList },
   { label: "Riwayat", href: "/user/history", icon: History },
+  { label: "Wishlist", href: "/user/wishlist", icon: Heart },
   { label: "Profil", href: "/user/profile", icon: UserCircle },
 ];
 

@@ -7,24 +7,27 @@ import { ArrowLeft, UploadCloud } from "lucide-react";
 import SidebarAdmin from "@/components/SidebarAdmin";
 import NavbarAdmin from "@/components/NavbarAdmin";
 import Footer from "@/components/Footer";
+import { apiUpload } from "@/lib/apiUpload.js";
 
 const NAVY = "#060771";
-
-const categories = ["Fiksi", "Non-Fiksi", "Sastra", "Sains", "Sejarah", "Pengembangan Diri"];
 
 export default function TambahBukuPage() {
   const router = useRouter();
   const [user, setUser] = useState(null);
   const [saved, setSaved] = useState(false);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [coverFile, setCoverFile] = useState(null);
   const [form, setForm] = useState({
     title: "",
     author: "",
     publisher: "",
-    year: "",
-    category: categories[0],
-    stock: "",
+    genre: "",
     isbn: "",
-    description: "",
+    call_number: "",
+    published_year: "",
+    stock: "",
+    synopsis: "",
   });
 
   useEffect(() => {
@@ -36,12 +39,34 @@ export default function TambahBukuPage() {
 
   const update = (key) => (e) => setForm({ ...form, [key]: e.target.value });
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    // TODO: sambungkan ke API tambah buku
-    console.log("Buku baru:", form);
-    setSaved(true);
-    setTimeout(() => router.push("/admin/books"), 900);
+    setError("");
+
+    if (!form.title || !form.author) {
+      setError("Judul dan penulis wajib diisi.");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const fd = new FormData();
+      Object.entries(form).forEach(([key, val]) => fd.append(key, val));
+      if (coverFile) fd.append("cover", coverFile);
+
+      const res = await apiUpload("/books", fd, "POST");
+
+      if (res.id) {
+        setSaved(true);
+        setTimeout(() => router.push("/admin/books"), 900);
+      } else {
+        setError(res.message || "Gagal menambahkan buku.");
+      }
+    } catch {
+      setError("Terjadi kesalahan koneksi.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -49,7 +74,7 @@ export default function TambahBukuPage() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
         * { box-sizing: border-box; }
-        .fm-input, .fm-select, .fm-textarea {
+        .fm-input, .fm-textarea {
           width: 100%;
           padding: 11px 14px;
           border-radius: 10px;
@@ -61,22 +86,18 @@ export default function TambahBukuPage() {
           transition: border-color .2s;
           background: #fff;
         }
-        .fm-input:focus, .fm-select:focus, .fm-textarea:focus { border-color: ${NAVY}; }
+        .fm-input:focus, .fm-textarea:focus { border-color: ${NAVY}; }
         .fm-textarea { resize: none; }
         .fm-label { display: block; font-size: 12.5px; font-weight: 600; color: #374151; margin-bottom: 6px; }
+        .fm-hint { font-size: 11px; color: #9ca3af; margin-top: 4px; }
         .fm-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
         @media (max-width: 700px) { .fm-grid { grid-template-columns: 1fr; } }
         .fm-btn { padding: 12px 28px; border-radius: 24px; border: none; background: ${NAVY}; color: #fff; font-size: 13.5px; font-weight: 700; cursor: pointer; transition: opacity .2s; }
         .fm-btn:hover { opacity: .92; }
+        .fm-btn:disabled { opacity: .6; cursor: not-allowed; }
         .fm-btn-ghost { padding: 12px 28px; border-radius: 24px; border: 1.5px solid #e5e7eb; background: #fff; color: #374151; font-size: 13.5px; font-weight: 700; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; }
-        .upload-box {
-          border: 1.5px dashed #d1d5db;
-          border-radius: 14px;
-          padding: 32px 16px;
-          text-align: center;
-          background: #f8faff;
-          cursor: pointer;
-        }
+        .upload-box { border: 1.5px dashed #d1d5db; border-radius: 14px; padding: 28px 16px; text-align: center; background: #f8faff; cursor: pointer; position: relative; }
+        .upload-box input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
       `}</style>
 
       <SidebarAdmin />
@@ -99,13 +120,20 @@ export default function TambahBukuPage() {
               ✓ Buku berhasil ditambahkan. Mengalihkan...
             </div>
           )}
+          {error && (
+            <div style={{ marginBottom: 20, maxWidth: 800, background: "#fef2f2", border: "1px solid #fca5a5", color: "#b91c1c", borderRadius: 10, padding: "12px 16px", fontSize: 13, fontWeight: 500 }}>
+              {error}
+            </div>
+          )}
 
           <form onSubmit={handleSubmit} style={{ maxWidth: 800, display: "flex", flexDirection: "column", gap: 22 }}>
             <div className="upload-box">
               <UploadCloud size={26} color={NAVY} style={{ marginBottom: 8 }} />
-              <div style={{ fontSize: 13, fontWeight: 600, color: "#374151" }}>Unggah sampul buku</div>
-              <div style={{ fontSize: 11.5, color: "#9ca3af", marginTop: 2 }}>PNG atau JPG, maksimal 2MB</div>
-              <input type="file" accept="image/*" style={{ display: "none" }} />
+              <div style={{ fontSize: 13, fontWeight: 600, color: "#374151" }}>
+                {coverFile ? coverFile.name : "Unggah sampul buku"}
+              </div>
+              <div style={{ fontSize: 11.5, color: "#9ca3af", marginTop: 2 }}>PNG atau JPG, maksimal 5MB — disimpan ke Supabase Storage</div>
+              <input type="file" accept="image/*" onChange={(e) => setCoverFile(e.target.files?.[0] || null)} />
             </div>
 
             <div>
@@ -126,37 +154,41 @@ export default function TambahBukuPage() {
 
             <div className="fm-grid">
               <div>
-                <label className="fm-label">Tahun Terbit</label>
-                <input className="fm-input" type="number" placeholder="2024" value={form.year} onChange={update("year")} />
+                <label className="fm-label">Genre</label>
+                <input className="fm-input" type="text" placeholder="Fiksi, Sains, Sejarah, dst." value={form.genre} onChange={update("genre")} />
               </div>
               <div>
-                <label className="fm-label">Kategori</label>
-                <select className="fm-select" value={form.category} onChange={update("category")}>
-                  {categories.map((c) => (
-                    <option key={c} value={c}>{c}</option>
-                  ))}
-                </select>
+                <label className="fm-label">Tahun Terbit</label>
+                <input className="fm-input" type="number" placeholder="2024" value={form.published_year} onChange={update("published_year")} />
               </div>
             </div>
 
             <div className="fm-grid">
               <div>
-                <label className="fm-label">Jumlah Stok</label>
-                <input className="fm-input" type="number" min="0" required placeholder="0" value={form.stock} onChange={update("stock")} />
-              </div>
-              <div>
                 <label className="fm-label">ISBN</label>
                 <input className="fm-input" type="text" placeholder="978-xxx-xxx-xxx" value={form.isbn} onChange={update("isbn")} />
+              </div>
+              <div>
+                <label className="fm-label">Nomor Rak</label>
+                <input className="fm-input" type="text" placeholder="FIC-TER-001" value={form.call_number} onChange={update("call_number")} />
               </div>
             </div>
 
             <div>
-              <label className="fm-label">Deskripsi / Sinopsis</label>
-              <textarea className="fm-textarea" rows={5} placeholder="Tuliskan ringkasan singkat buku..." value={form.description} onChange={update("description")} />
+              <label className="fm-label">Jumlah Stok</label>
+              <input className="fm-input" type="number" min="0" required placeholder="0" value={form.stock} onChange={update("stock")} style={{ maxWidth: 200 }} />
+              <div className="fm-hint">Stok tersedia otomatis sama dengan jumlah ini saat buku baru dibuat.</div>
+            </div>
+
+            <div>
+              <label className="fm-label">Sinopsis</label>
+              <textarea className="fm-textarea" rows={5} placeholder="Tuliskan ringkasan singkat buku..." value={form.synopsis} onChange={update("synopsis")} />
             </div>
 
             <div style={{ display: "flex", gap: 12, marginTop: 8 }}>
-              <button type="submit" className="fm-btn">Simpan Buku</button>
+              <button type="submit" className="fm-btn" disabled={loading}>
+                {loading ? "Menyimpan..." : "Simpan Buku"}
+              </button>
               <Link href="/admin/books" className="fm-btn-ghost">Batal</Link>
             </div>
           </form>

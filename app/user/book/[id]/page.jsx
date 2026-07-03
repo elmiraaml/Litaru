@@ -3,7 +3,7 @@
 import { Heart, Share2, ArrowLeft, BookOpen } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import Link from "next/link";
+import { api } from "@/lib/api.js";
 
 const NAVY = "#060771";
 
@@ -13,25 +13,27 @@ export default function DetailBuku() {
   const [buku, setBuku] = useState(null);
   const [loading, setLoading] = useState(true);
   const [inWishlist, setInWishlist] = useState(false);
+  const [borrowing, setBorrowing] = useState(false);
+  const [borrowMsg, setBorrowMsg] = useState("");
 
   useEffect(() => {
     async function fetchDetail() {
       try {
-        const res = await fetch(`/api/buku/${id}`);
-        const data = await res.json();
+        const data = await api(`/books/${id}`);
 
-        if (!data || Object.keys(data).length === 0) {
+        if (!data || data.message) {
           setBuku(null);
         } else {
           setBuku({
-            id_buku: data.id_buku || data.id || id,
-            judul: data.judul || "",
-            pengarang: data.pengarang || "",
-            penerbit: data.penerbit || "-",
-            tahun_terbit: data.tahun_terbit || "-",
-            stok: data.stok ?? "-",
-            kategori: data.kategori || "-",
-            gambar: data.gambar || "",
+            id: data.id,
+            title: data.title || "",
+            author: data.author || "",
+            publisher: data.publisher || "-",
+            published_year: data.published_year || "-",
+            available_stock: data.available_stock ?? 0,
+            stock: data.stock ?? 0,
+            genre: data.genre || "-",
+            cover_url: data.cover_url || "",
           });
         }
       } catch (error) {
@@ -42,7 +44,7 @@ export default function DetailBuku() {
       }
     }
 
-    fetchDetail();
+    if (id) fetchDetail();
   }, [id]);
 
   useEffect(() => {
@@ -50,7 +52,7 @@ export default function DetailBuku() {
     try {
       const saved = localStorage.getItem("wishlist");
       const wishlist = saved ? JSON.parse(saved) : [];
-      setInWishlist(wishlist.some((item) => item.id_buku === buku.id_buku));
+      setInWishlist(wishlist.some((item) => item.id === buku.id));
     } catch {}
   }, [buku]);
 
@@ -58,7 +60,7 @@ export default function DetailBuku() {
     let saved = localStorage.getItem("wishlist");
     let wishlist = saved ? JSON.parse(saved) : [];
 
-    const exists = wishlist.some((item) => item.id_buku === buku.id_buku);
+    const exists = wishlist.some((item) => item.id === buku.id);
 
     if (!exists) {
       wishlist.push(buku);
@@ -67,6 +69,27 @@ export default function DetailBuku() {
     }
 
     router.push("/user/wishlist");
+  };
+
+  const handleBorrow = async () => {
+    setBorrowMsg("");
+    setBorrowing(true);
+    try {
+      const res = await api("/loans", {
+        method: "POST",
+        body: JSON.stringify({ book_id: buku.id }),
+      });
+
+      if (res.id) {
+        router.push("/user/pinjaman");
+      } else {
+        setBorrowMsg(res.message || "Gagal mengajukan peminjaman.");
+      }
+    } catch {
+      setBorrowMsg("Terjadi kesalahan koneksi.");
+    } finally {
+      setBorrowing(false);
+    }
   };
 
   if (loading) {
@@ -85,12 +108,8 @@ export default function DetailBuku() {
     );
   }
 
-  const imagePath = buku.gambar;
-  const coverSrc = imagePath?.startsWith("http")
-    ? imagePath
-    : imagePath
-    ? `/buku/${imagePath}`
-    : "/no-image.jpg";
+  const coverSrc = buku.cover_url || "/no-image.jpg";
+  const isAvailable = Number(buku.available_stock) > 0;
 
   return (
     <div style={{ minHeight: "100vh", background: "#f8faff", fontFamily: "'Inter', sans-serif", padding: "48px 24px" }}>
@@ -136,9 +155,9 @@ export default function DetailBuku() {
           display: inline-flex;
           align-items: center;
           gap: 8px;
-          text-decoration: none;
         }
         .borrow-btn:hover { opacity: .92; transform: translateY(-1px); }
+        .borrow-btn:disabled { opacity: .5; cursor: not-allowed; transform: none; }
         .spec-row { display: flex; gap: 8px; font-size: 13.5px; padding: 8px 0; border-bottom: 1px solid #f1f2f7; }
         .spec-label { color: #9ca3af; font-weight: 600; min-width: 110px; }
         .spec-value { color: #111827; font-weight: 600; }
@@ -184,7 +203,7 @@ export default function DetailBuku() {
 
           <img
             src={coverSrc}
-            alt={buku.judul}
+            alt={buku.title}
             onError={(e) => {
               e.target.src = "/no-image.jpg";
             }}
@@ -215,44 +234,45 @@ export default function DetailBuku() {
               marginBottom: 16,
             }}
           >
-            {buku.kategori}
+            {buku.genre}
           </span>
 
           <h1 style={{ fontSize: 30, fontWeight: 800, color: "#111827", margin: "0 0 8px", lineHeight: 1.15 }}>
-            {buku.judul}
+            {buku.title}
           </h1>
 
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 22 }}>
-            <span style={{ fontSize: 14.5, fontWeight: 600, color: "#374151" }}>{buku.pengarang}</span>
+            <span style={{ fontSize: 14.5, fontWeight: 600, color: "#374151" }}>{buku.author}</span>
             <span style={{ width: 4, height: 4, borderRadius: "50%", background: "#d1d5db" }} />
-            <span style={{ fontSize: 13.5, color: "#9ca3af" }}>{buku.tahun_terbit}</span>
+            <span style={{ fontSize: 13.5, color: "#9ca3af" }}>{buku.published_year}</span>
           </div>
 
           <div style={{ marginBottom: 24 }}>
             <div className="spec-row">
               <span className="spec-label">Penerbit</span>
-              <span className="spec-value">{buku.penerbit}</span>
+              <span className="spec-value">{buku.publisher}</span>
             </div>
             <div className="spec-row">
-              <span className="spec-label">Kategori</span>
-              <span className="spec-value">{buku.kategori}</span>
+              <span className="spec-label">Genre</span>
+              <span className="spec-value">{buku.genre}</span>
             </div>
             <div className="spec-row" style={{ borderBottom: "none" }}>
               <BookOpen size={16} color={NAVY} style={{ marginTop: 1 }} />
               <span className="spec-label" style={{ minWidth: "auto" }}>Stok</span>
-              <span
-                className="spec-value"
-                style={{ color: Number(buku.stok) > 0 ? "#059669" : "#dc2626" }}
-              >
-                {buku.stok} buku
+              <span className="spec-value" style={{ color: isAvailable ? "#059669" : "#dc2626" }}>
+                {buku.available_stock} dari {buku.stock} tersedia
               </span>
             </div>
           </div>
 
+          {borrowMsg && (
+            <p style={{ fontSize: 12.5, color: "#dc2626", fontWeight: 500, marginBottom: 12 }}>{borrowMsg}</p>
+          )}
+
           <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: "auto" }}>
-            <Link href={`/user/peminjaman/${id}`} className="borrow-btn">
-              Pinjam
-            </Link>
+            <button className="borrow-btn" onClick={handleBorrow} disabled={borrowing || !isAvailable}>
+              {borrowing ? "Memproses..." : isAvailable ? "Pinjam" : "Stok Habis"}
+            </button>
 
             <button
               className={`icon-btn ${inWishlist ? "liked" : ""}`}

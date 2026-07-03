@@ -6,22 +6,15 @@ import { Search, Plus, Pencil, Trash2 } from "lucide-react";
 import SidebarAdmin from "@/components/SidebarAdmin";
 import NavbarAdmin from "@/components/NavbarAdmin";
 import Footer from "@/components/Footer";
+import { api } from "@/lib/api.js";
 
 const NAVY = "#060771";
 const covers = ["#E4E7FB", "#FCEBD5", "#DCF3E8", "#FBE3E7", "#DDEEF9"];
 
-const books = [
-  { id: 1, title: "Laut Bercerita", author: "Leila S. Chudori", category: "Fiksi", stock: 3, cover: covers[0] },
-  { id: 2, title: "Keajaiban Toko Kelontong Namiya", author: "Keigo Higashino", category: "Fiksi", stock: 0, cover: covers[1] },
-  { id: 3, title: "Bumi Manusia", author: "Pramoedya Ananta Toer", category: "Sastra", stock: 5, cover: covers[2] },
-  { id: 4, title: "Filosofi Teras", author: "Henry Manampiring", category: "Non-Fiksi", stock: 2, cover: covers[3] },
-  { id: 5, title: "Sapiens", author: "Yuval Noah Harari", category: "Non-Fiksi", stock: 4, cover: covers[4] },
-  { id: 6, title: "Atomic Habits", author: "James Clear", category: "Pengembangan Diri", stock: 6, cover: covers[0] },
-  { id: 7, title: "Cantik Itu Luka", author: "Eka Kurniawan", category: "Sastra", stock: 1, cover: covers[1] },
-];
-
 export default function KelolaBukuPage() {
   const [user, setUser] = useState(null);
+  const [books, setBooks] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
 
   useEffect(() => {
@@ -29,7 +22,21 @@ export default function KelolaBukuPage() {
       const stored = JSON.parse(localStorage.getItem("user"));
       if (stored) setUser(stored);
     } catch {}
+    loadBooks();
   }, []);
+
+  const loadBooks = async () => {
+    setLoading(true);
+    const res = await api("/books");
+    setBooks(Array.isArray(res) ? res : []);
+    setLoading(false);
+  };
+
+  const handleDelete = async (id, title) => {
+    if (!confirm(`Hapus buku "${title}"? Cover di storage juga akan terhapus.`)) return;
+    const res = await api(`/books/${id}`, { method: "DELETE" });
+    if (res.message) loadBooks();
+  };
 
   const filtered = books.filter(
     (b) =>
@@ -87,42 +94,45 @@ export default function KelolaBukuPage() {
               <thead>
                 <tr>
                   <th>Buku</th>
-                  <th className="hide-mobile">Kategori</th>
+                  <th className="hide-mobile">Genre</th>
                   <th>Stok</th>
                   <th style={{ textAlign: "right" }}>Aksi</th>
                 </tr>
               </thead>
               <tbody>
-                {filtered.length === 0 && (
-                  <tr>
-                    <td colSpan={4} style={{ textAlign: "center", color: "#9ca3af", padding: "32px 0" }}>
-                      Tidak ada buku ditemukan.
-                    </td>
-                  </tr>
+                {loading && (
+                  <tr><td colSpan={4} style={{ textAlign: "center", color: "#9ca3af", padding: "32px 0" }}>Memuat...</td></tr>
                 )}
-                {filtered.map((b) => (
+                {!loading && filtered.length === 0 && (
+                  <tr><td colSpan={4} style={{ textAlign: "center", color: "#9ca3af", padding: "32px 0" }}>Tidak ada buku ditemukan.</td></tr>
+                )}
+                {filtered.map((b, i) => (
                   <tr key={b.id}>
                     <td>
                       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                        <div style={{ width: 34, height: 46, borderRadius: 6, background: b.cover, flexShrink: 0 }} />
+                        {b.cover_url ? (
+                          <img src={b.cover_url} alt={b.title} style={{ width: 34, height: 46, borderRadius: 6, objectFit: "cover", flexShrink: 0 }} />
+                        ) : (
+                          <div style={{ width: 34, height: 46, borderRadius: 6, background: covers[i % covers.length], flexShrink: 0 }} />
+                        )}
                         <div>
                           <div style={{ fontWeight: 700, color: "#111827" }}>{b.title}</div>
                           <div style={{ fontSize: 11.5, color: "#9ca3af", marginTop: 1 }}>{b.author}</div>
                         </div>
                       </div>
                     </td>
-                    <td className="hide-mobile">{b.category}</td>
+                    <td className="hide-mobile">{b.genre || "—"}</td>
                     <td>
-                      <span style={{ fontWeight: 700, color: b.stock > 0 ? "#047857" : "#dc2626" }}>
-                        {b.stock > 0 ? b.stock : "Habis"}
+                      <span style={{ fontWeight: 700, color: b.available_stock > 0 ? "#047857" : "#dc2626" }}>
+                        {b.available_stock > 0 ? `${b.available_stock}/${b.stock}` : "Habis"}
                       </span>
                     </td>
                     <td>
                       <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-                        <button className="icon-btn-sm" style={{ background: "#eef0fb" }} aria-label="Edit">
+                        <Link href={`/admin/books/${b.id}/edit`} className="icon-btn-sm" style={{ background: "#eef0fb" }} aria-label="Edit">
                           <Pencil size={14} color={NAVY} />
-                        </button>
-                        <button className="icon-btn-sm" style={{ background: "#fee2e2" }} aria-label="Hapus">
+                        </Link>
+                        <button className="icon-btn-sm" style={{ background: "#fee2e2" }} onClick={() => handleDelete(b.id, b.title)} aria-label="Hapus">
                           <Trash2 size={14} color="#b91c1c" />
                         </button>
                       </div>

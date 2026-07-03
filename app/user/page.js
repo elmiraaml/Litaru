@@ -1,43 +1,17 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import SidebarUser from "@/components/SidebarUser";
 import NavbarUser from "@/components/NavbarUser";
 import Footer from "@/components/Footer";
+import { api } from "@/lib/api.js";
 
 const NAVY = "#060771";
 
-// Soft, muted cover tints — harmonize with navy chrome instead of clashing.
+// Fallback tint kalau buku belum punya cover_url
 const covers = ["#E4E7FB", "#FCEBD5", "#DCF3E8", "#FBE3E7", "#DDEEF9"];
-
-const recentLoans = [
-  { title: "Laut Bercerita", author: "Leila S. Chudori", cover: covers[0], daysLeft: 3, totalDays: 14 },
-  { title: "Keajaiban Toko Kelontong Namiya", author: "Keigo Higashino", cover: covers[1], daysLeft: 9, totalDays: 14 },
-  { title: "Bumi Manusia", author: "Pramoedya Ananta Toer", cover: covers[2], daysLeft: 1, totalDays: 14 },
-  { title: "Filosofi Teras", author: "Henry Manampiring", cover: covers[3], daysLeft: 12, totalDays: 14 },
-  { title: "Sapiens", author: "Yuval Noah Harari", cover: covers[4], daysLeft: 6, totalDays: 14 },
-  { title: "Negeri 5 Menara", author: "Ahmad Fuadi", cover: covers[0], daysLeft: 8, totalDays: 14 },
-  { title: "Atomic Habits", author: "James Clear", cover: covers[1], daysLeft: 4, totalDays: 14 },
-  { title: "Cantik Itu Luka", author: "Eka Kurniawan", cover: covers[2], daysLeft: 10, totalDays: 14 },
-];
-
-const forYou = [
-  { title: "Sapiens: Riwayat Singkat Umat Manusia", author: "Yuval Noah Harari", cover: covers[4] },
-  { title: "Negeri 5 Menara", author: "Ahmad Fuadi", cover: covers[0] },
-  { title: "Atomic Habits", author: "James Clear", cover: covers[1] },
-  { title: "Cantik Itu Luka", author: "Eka Kurniawan", cover: covers[2] },
-  { title: "Bumi Manusia", author: "Pramoedya Ananta Toer", cover: covers[3] },
-  { title: "Laskar Pelangi", author: "Andrea Hirata", cover: covers[4] },
-  { title: "Dilan 1990", author: "Pidi Baiq", cover: covers[0] },
-  { title: "Filosofi Teras", author: "Henry Manampiring", cover: covers[1] },
-  { title: "Laut Bercerita", author: "Leila S. Chudori", cover: covers[2] },
-  { title: "Keajaiban Toko Kelontong Namiya", author: "Keigo Higashino", cover: covers[3] },
-  { title: "Ayah", author: "Andrea Hirata", cover: covers[4] },
-  { title: "Perahu Kertas", author: "Dee Lestari", cover: covers[0] },
-];
-
-
 
 function ProgressBar({ daysLeft, totalDays }) {
   const pct = Math.max(0, Math.min(100, ((totalDays - daysLeft) / totalDays) * 100));
@@ -88,12 +62,55 @@ function Carousel({ children }) {
 
 export default function UserHomePage() {
   const [user, setUser] = useState(null);
+  const [recentLoans, setRecentLoans] = useState([]);
+  const [forYou, setForYou] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     try {
       const stored = JSON.parse(localStorage.getItem("user"));
       if (stored) setUser(stored);
     } catch {}
+
+    async function loadData() {
+      try {
+        const [loansRes, booksRes] = await Promise.all([
+          api("/loans?status=borrowed"),
+          api("/books"),
+        ]);
+
+        if (Array.isArray(loansRes)) {
+          setRecentLoans(
+            loansRes.map((loan) => {
+              const totalDays = loan.borrowed_at && loan.due_date
+                ? Math.max(1, Math.round((new Date(loan.due_date) - new Date(loan.borrowed_at)) / 86400000))
+                : 7;
+              const daysLeft = loan.due_date
+                ? Math.ceil((new Date(loan.due_date) - new Date()) / 86400000)
+                : 0;
+              return {
+                id: loan.id,
+                title: loan.book_title,
+                author: loan.book_author,
+                cover_url: loan.cover_url,
+                daysLeft,
+                totalDays,
+              };
+            })
+          );
+        }
+
+        if (Array.isArray(booksRes)) {
+          setForYou(booksRes.slice(0, 12));
+        }
+      } catch (err) {
+        console.error("Gagal memuat data dashboard:", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadData();
   }, []);
 
   return (
@@ -118,6 +135,7 @@ export default function UserHomePage() {
           align-items: flex-end;
           padding: 10px;
         }
+        .book-cover img { width: 100%; height: 100%; object-fit: cover; position: absolute; inset: 0; }
         .book-cover::after {
           content: '';
           position: absolute;
@@ -136,6 +154,9 @@ export default function UserHomePage() {
           font-weight: 700;
           cursor: pointer;
           transition: opacity .2s;
+          text-align: center;
+          text-decoration: none;
+          display: block;
         }
         .borrow-btn:hover { opacity: .9; }
         .book-grid {
@@ -209,7 +230,7 @@ export default function UserHomePage() {
             Selamat Datang
           </p>
           <h1 style={{ fontSize: 26, fontWeight: 800, color: "#111827", margin: "0 0 8px" }}>
-            Hi, {user?.name || "Elmira"}!
+            Hi, {user?.name || "Siswa"}!
           </h1>
           <p style={{ fontSize: 13.5, color: "#6b7280", margin: "0 0 40px" }}>
             Selamat datang kembali di Litaru. Ini ringkasan aktivitas membacamu.
@@ -218,38 +239,50 @@ export default function UserHomePage() {
           {/* RECENT */}
           <section style={{ marginBottom: 48 }}>
             <div className="section-head">
-              <h2 className="section-title">Recent</h2>
-              <a href="/user/loans" className="section-link">Lihat semua peminjaman →</a>
+              <h2 className="section-title">Sedang Dipinjam</h2>
+              <a href="/user/pinjaman" className="section-link">Lihat semua peminjaman →</a>
             </div>
-            <Carousel>
-              {recentLoans.map((book, i) => (
-                <div key={i} className="book-card carousel-item">
-                  <div className="book-cover" style={{ background: book.cover }} />
-                  <div style={{ fontSize: 13, fontWeight: 700, color: "#111827", lineHeight: 1.3, marginTop: 10 }}>
-                    {book.title}
+            {recentLoans.length === 0 && !loading ? (
+              <div style={{ background: "#fff", border: "1px solid #eef0f5", borderRadius: 18, padding: "32px", textAlign: "center", fontSize: 13, color: "#9ca3af" }}>
+                Belum ada buku yang sedang dipinjam.
+              </div>
+            ) : (
+              <Carousel>
+                {recentLoans.map((book) => (
+                  <div key={book.id} className="book-card carousel-item">
+                    <div className="book-cover" style={{ background: covers[book.id % covers.length] }}>
+                      {book.cover_url && <img src={book.cover_url} alt={book.title} />}
+                    </div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "#111827", lineHeight: 1.3, marginTop: 10 }}>
+                      {book.title}
+                    </div>
+                    <div style={{ fontSize: 11.5, color: "#6b7280", marginTop: 2 }}>{book.author}</div>
+                    <ProgressBar daysLeft={book.daysLeft} totalDays={book.totalDays} />
                   </div>
-                  <div style={{ fontSize: 11.5, color: "#6b7280", marginTop: 2 }}>{book.author}</div>
-                  <ProgressBar daysLeft={book.daysLeft} totalDays={book.totalDays} />
-                </div>
-              ))}
-            </Carousel>
+                ))}
+              </Carousel>
+            )}
           </section>
 
           {/* FOR YOU */}
           <section>
             <div className="section-head">
-              <h2 className="section-title">For You</h2>
-              <a href="/user/catalog" className="section-link">Jelajahi katalog →</a>
+              <h2 className="section-title">Katalog</h2>
+              <a href="/user/katalog" className="section-link">Jelajahi katalog →</a>
             </div>
             <div className="book-grid">
               {forYou.map((book, i) => (
-                <div key={i} className="book-card">
-                  <div className="book-cover" style={{ background: book.cover }} />
+                <div key={book.id} className="book-card">
+                  <div className="book-cover" style={{ background: covers[i % covers.length] }}>
+                    {book.cover_url && <img src={book.cover_url} alt={book.title} />}
+                  </div>
                   <div style={{ fontSize: 13.5, fontWeight: 700, color: "#111827", lineHeight: 1.35, marginTop: 12 }}>
                     {book.title}
                   </div>
                   <div style={{ fontSize: 12, color: "#6b7280", marginTop: 3 }}>{book.author}</div>
-                  <button className="borrow-btn">Borrow</button>
+                  <Link href={`/user/buku/${book.id}`} className="borrow-btn">
+                    Lihat Detail
+                  </Link>
                 </div>
               ))}
             </div>
