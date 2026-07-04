@@ -8,13 +8,14 @@ export async function PUT(request, { params }) {
   if (!admin) return NextResponse.json({ message: "Akses ditolak." }, { status: 403 });
 
   try {
+    const { id } = await params;
     const { role } = await request.json();
     if (!["user", "admin"].includes(role)) {
       return NextResponse.json({ message: "Role tidak valid." }, { status: 400 });
     }
 
-    await db.query("UPDATE users SET role = ? WHERE id = ?", [role, params.id]);
-    const [rows] = await db.query("SELECT id, name, email, phone, role FROM users WHERE id = ?", [params.id]);
+    await db.query("UPDATE users SET role = ? WHERE id = ?", [role, id]);
+    const [rows] = await db.query("SELECT id, name, email, phone, role FROM users WHERE id = ?", [id]);
     return NextResponse.json({ message: "Role berhasil diubah.", user: rows[0] });
   } catch (err) {
     console.error("UPDATE USER ERROR:", err);
@@ -27,12 +28,13 @@ export async function DELETE(request, { params }) {
   const admin = verifyAdmin(request);
   if (!admin) return NextResponse.json({ message: "Akses ditolak." }, { status: 403 });
 
-  if (String(admin.id) === String(params.id)) {
-    return NextResponse.json({ message: "Tidak bisa menghapus akun sendiri." }, { status: 400 });
-  }
-
   try {
-    await db.query("DELETE FROM users WHERE id = ?", [params.id]);
+    const { id } = await params;
+    if (String(admin.id) === String(id)) {
+      return NextResponse.json({ message: "Tidak bisa menghapus akun sendiri." }, { status: 400 });
+    }
+
+    await db.query("DELETE FROM users WHERE id = ?", [id]);
     return NextResponse.json({ message: "Pengguna berhasil dihapus." });
   } catch (err) {
     console.error("DELETE USER ERROR:", err);

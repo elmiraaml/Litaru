@@ -9,7 +9,8 @@ export async function POST(request, { params }) {
   if (!user) return NextResponse.json({ message: "Silakan login." }, { status: 401 });
 
   try {
-    const [rows] = await db.query("SELECT * FROM loans WHERE id = ?", [params.id]);
+    const { id } = await params;
+    const [rows] = await db.query("SELECT * FROM loans WHERE id = ?", [id]);
     if (rows.length === 0) return NextResponse.json({ message: "Peminjaman tidak ditemukan." }, { status: 404 });
 
     const loan = rows[0];
@@ -24,13 +25,13 @@ export async function POST(request, { params }) {
     }
 
     const settings = await getSettings();
-    const extendDays = Math.ceil(settings.loanDurationDays / 2); // perpanjangan setengah dari masa pinjam normal
+    const extendDays = Math.ceil(settings.loanDurationDays / 2);
     const newDueDate = new Date(loan.due_date);
     newDueDate.setDate(newDueDate.getDate() + extendDays);
 
     await db.query(
       "UPDATE loans SET due_date = ?, notes = CONCAT(IFNULL(notes,''), ' [extended]') WHERE id = ?",
-      [newDueDate, params.id]
+      [newDueDate, id]
     );
 
     return NextResponse.json({ message: "Peminjaman berhasil diperpanjang.", due_date: newDueDate });

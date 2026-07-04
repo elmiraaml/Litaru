@@ -240,7 +240,7 @@ export default function UserHomePage() {
           <section style={{ marginBottom: 48 }}>
             <div className="section-head">
               <h2 className="section-title">Sedang Dipinjam</h2>
-              <a href="/user/pinjaman" className="section-link">Lihat semua peminjaman →</a>
+              <a href="/user/peminjaman" className="section-link">Lihat semua peminjaman →</a>
             </div>
             {recentLoans.length === 0 && !loading ? (
               <div style={{ background: "#fff", border: "1px solid #eef0f5", borderRadius: 18, padding: "32px", textAlign: "center", fontSize: 13, color: "#9ca3af" }}>
@@ -280,7 +280,7 @@ export default function UserHomePage() {
                     {book.title}
                   </div>
                   <div style={{ fontSize: 12, color: "#6b7280", marginTop: 3 }}>{book.author}</div>
-                  <Link href={`/user/buku/${book.id}`} className="borrow-btn">
+                  <Link href={`/user/book/${book.id}`} className="borrow-btn">
                     Lihat Detail
                   </Link>
                 </div>

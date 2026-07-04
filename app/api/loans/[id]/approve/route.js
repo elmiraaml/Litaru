@@ -16,7 +16,8 @@ export async function POST(request, { params }) {
   if (!admin) return NextResponse.json({ message: "Akses ditolak." }, { status: 403 });
 
   try {
-    const [rows] = await db.query("SELECT * FROM loans WHERE id = ?", [params.id]);
+    const { id } = await params;
+    const [rows] = await db.query("SELECT * FROM loans WHERE id = ?", [id]);
     if (rows.length === 0) return NextResponse.json({ message: "Peminjaman tidak ditemukan." }, { status: 404 });
     const loan = rows[0];
     if (loan.status !== "pending") {
@@ -34,7 +35,7 @@ export async function POST(request, { params }) {
 
     await db.query(
       "UPDATE loans SET status='approved', approved_at=NOW(), approved_by=?, pickup_code=?, pickup_deadline=? WHERE id=?",
-      [admin.id, pickupCode, pickupDeadline, params.id]
+      [admin.id, pickupCode, pickupDeadline, id]
     );
     await db.query("UPDATE books SET available_stock = available_stock - 1 WHERE id = ?", [loan.book_id]);
 

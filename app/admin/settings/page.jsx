@@ -5,10 +5,10 @@ import { Camera } from "lucide-react";
 import SidebarAdmin from "@/components/SidebarAdmin";
 import NavbarAdmin from "@/components/NavbarAdmin";
 import Footer from "@/components/Footer";
+import { api } from "@/lib/api.js";
 
 const NAVY = "#060771";
 
-// Nilai default mengikuti seed di tabel `settings`
 const defaultRules = {
   pickup_deadline_hours: "48",
   loan_duration_days: "7",
@@ -20,42 +20,81 @@ const defaultRules = {
 export default function AdminSettingsPage() {
   const [user, setUser] = useState(null);
   const [profileForm, setProfileForm] = useState({ name: "", email: "", phone: "" });
+  const [passwordForm, setPasswordForm] = useState({ currentPassword: "", newPassword: "" });
   const [rules, setRules] = useState(defaultRules);
+
   const [savedProfile, setSavedProfile] = useState(false);
+  const [savedPassword, setSavedPassword] = useState(false);
   const [savedRules, setSavedRules] = useState(false);
+  const [errorProfile, setErrorProfile] = useState("");
+  const [errorPassword, setErrorPassword] = useState("");
 
   useEffect(() => {
-    try {
-      const stored = JSON.parse(localStorage.getItem("user"));
-      if (stored) {
-        setUser(stored);
-        setProfileForm({
-          name: stored.name || "Pak Anton",
-          email: stored.email || "anton.admin@tarunabhakti.sch.id",
-          phone: stored.phone || "0812xxxxxxx",
-        });
-      } else {
-        setProfileForm({ name: "Pak Anton", email: "anton.admin@tarunabhakti.sch.id", phone: "0812xxxxxxx" });
+    async function load() {
+      const me = await api("/users/me");
+      if (me?.id) {
+        setUser(me);
+        setProfileForm({ name: me.name || "", email: me.email || "", phone: me.phone || "" });
+        localStorage.setItem("user", JSON.stringify(me));
       }
-    } catch {}
+
+      const settingsRes = await api("/admin/settings");
+      if (settingsRes && !settingsRes.message) {
+        setRules({ ...defaultRules, ...settingsRes });
+      }
+    }
+    load();
   }, []);
 
-  const handleSaveProfile = (e) => {
+  const handleSaveProfile = async (e) => {
     e.preventDefault();
-    localStorage.setItem("user", JSON.stringify({ ...user, ...profileForm }));
-    setSavedProfile(true);
-    setTimeout(() => setSavedProfile(false), 2000);
+    setErrorProfile("");
+    const res = await api("/users/me", {
+      method: "PUT",
+      body: JSON.stringify({ name: profileForm.name, phone: profileForm.phone }),
+    });
+    if (res.user) {
+      setUser(res.user);
+      localStorage.setItem("user", JSON.stringify(res.user));
+      setSavedProfile(true);
+      setTimeout(() => setSavedProfile(false), 2000);
+    } else {
+      setErrorProfile(res.message || "Gagal menyimpan profil.");
+    }
   };
 
-  const handleSaveRules = (e) => {
+  const handleSavePassword = async (e) => {
     e.preventDefault();
-    // TODO: kirim ke API -> UPDATE settings SET value=? WHERE `key`=? untuk tiap field
-    console.log("Simpan settings:", rules);
-    setSavedRules(true);
-    setTimeout(() => setSavedRules(false), 2000);
+    setErrorPassword("");
+    if (!passwordForm.currentPassword || !passwordForm.newPassword) {
+      setErrorPassword("Isi password lama dan baru dulu.");
+      return;
+    }
+    const res = await api("/users/me/password", {
+      method: "PUT",
+      body: JSON.stringify(passwordForm),
+    });
+    if (res.message === "Password berhasil diubah.") {
+      setPasswordForm({ currentPassword: "", newPassword: "" });
+      setSavedPassword(true);
+      setTimeout(() => setSavedPassword(false), 2000);
+    } else {
+      setErrorPassword(res.message || "Gagal mengubah password.");
+    }
   };
 
-  const initial = profileForm.name.charAt(0).toUpperCase();
+  const handleSaveRules = async (e) => {
+    e.preventDefault();
+    const res = await api("/admin/settings", { method: "PUT", body: JSON.stringify(rules) });
+    if (res.settings) {
+      setSavedRules(true);
+      setTimeout(() => setSavedRules(false), 2000);
+    } else {
+      alert(res.message || "Gagal menyimpan aturan.");
+    }
+  };
+
+  const initial = (profileForm.name || "A").charAt(0).toUpperCase();
 
   return (
     <div style={{ display: "flex", minHeight: "100vh", background: "#f8faff", fontFamily: "'Inter', sans-serif" }}>
@@ -77,6 +116,8 @@ export default function AdminSettingsPage() {
         .input-prefix { position: relative; }
         .input-prefix span { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); font-size: 13px; color: #9ca3af; }
         .input-prefix input { padding-left: 40px; }
+        .alert-ok { margin-bottom: 18px; background: #ecfdf5; border: 1px solid #10b981; color: #065f46; border-radius: 10px; padding: 10px 14px; font-size: 12.5px; font-weight: 600; }
+        .alert-err { margin-bottom: 18px; background: #fef2f2; border: 1px solid #fca5a5; color: #b91c1c; border-radius: 10px; padding: 10px 14px; font-size: 12.5px; font-weight: 600; }
       `}</style>
 
       <SidebarAdmin />
@@ -111,63 +152,74 @@ export default function AdminSettingsPage() {
             <div className="panel">
               <h3 style={{ fontSize: 15, fontWeight: 800, color: "#111827", margin: "0 0 22px" }}>Informasi Akun</h3>
 
-              {savedProfile && (
-                <div style={{ marginBottom: 18, background: "#ecfdf5", border: "1px solid #10b981", color: "#065f46", borderRadius: 10, padding: "10px 14px", fontSize: 12.5, fontWeight: 600 }}>
-                  ✓ Profil berhasil disimpan.
-                </div>
-              )}
+              {savedProfile && <div className="alert-ok">✓ Profil berhasil disimpan.</div>}
+              {errorProfile && <div className="alert-err">{errorProfile}</div>}
 
-              <form onSubmit={handleSaveProfile} style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+              <form onSubmit={handleSaveProfile} style={{ display: "flex", flexDirection: "column", gap: 18, marginBottom: 28 }}>
                 <div>
-                  <label className="st-label">Nama Lengkap (name)</label>
+                  <label className="st-label">Nama Lengkap</label>
                   <input className="st-input" type="text" value={profileForm.name} onChange={(e) => setProfileForm({ ...profileForm, name: e.target.value })} />
                 </div>
                 <div className="rules-grid">
                   <div>
                     <label className="st-label">Email</label>
-                    <input className="st-input" type="email" value={profileForm.email} onChange={(e) => setProfileForm({ ...profileForm, email: e.target.value })} />
+                    <input className="st-input" type="email" value={profileForm.email} disabled />
                   </div>
                   <div>
-                    <label className="st-label">Nomor Telepon (phone)</label>
+                    <label className="st-label">Nomor Telepon</label>
                     <input className="st-input" type="tel" value={profileForm.phone} onChange={(e) => setProfileForm({ ...profileForm, phone: e.target.value })} />
                   </div>
-                </div>
-                <div>
-                  <label className="st-label">Password Baru</label>
-                  <input className="st-input" type="password" placeholder="Kosongkan jika tidak diubah" />
-                  <div className="st-hint">Isi hanya jika ingin mengganti password akun ini.</div>
                 </div>
                 <div style={{ display: "flex", justifyContent: "flex-end" }}>
                   <button type="submit" className="st-btn">Simpan Profil</button>
                 </div>
               </form>
+
+              <h3 style={{ fontSize: 15, fontWeight: 800, color: "#111827", margin: "0 0 18px", borderTop: "1px solid #f1f2f7", paddingTop: 24 }}>
+                Ubah Password
+              </h3>
+
+              {savedPassword && <div className="alert-ok">✓ Password berhasil diubah.</div>}
+              {errorPassword && <div className="alert-err">{errorPassword}</div>}
+
+              <form onSubmit={handleSavePassword} style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+                <div className="rules-grid">
+                  <div>
+                    <label className="st-label">Password Lama</label>
+                    <input className="st-input" type="password" value={passwordForm.currentPassword} onChange={(e) => setPasswordForm({ ...passwordForm, currentPassword: e.target.value })} />
+                  </div>
+                  <div>
+                    <label className="st-label">Password Baru</label>
+                    <input className="st-input" type="password" placeholder="Minimal 8 karakter" value={passwordForm.newPassword} onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })} />
+                  </div>
+                </div>
+                <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                  <button type="submit" className="st-btn">Ubah Password</button>
+                </div>
+              </form>
             </div>
           </div>
 
-          {/* LIBRARY RULES (settings table) */}
+          {/* LIBRARY RULES */}
           <div className="panel">
             <h3 style={{ fontSize: 15, fontWeight: 800, color: "#111827", margin: "0 0 4px" }}>Aturan Peminjaman</h3>
             <p style={{ fontSize: 12.5, color: "#9ca3af", margin: "0 0 22px" }}>
-              Konfigurasi ini mengatur tabel <code>settings</code> — berlaku untuk semua transaksi peminjaman.
+              Berlaku untuk semua transaksi peminjaman di seluruh sistem.
             </p>
 
-            {savedRules && (
-              <div style={{ marginBottom: 18, background: "#ecfdf5", border: "1px solid #10b981", color: "#065f46", borderRadius: 10, padding: "10px 14px", fontSize: 12.5, fontWeight: 600 }}>
-                ✓ Aturan peminjaman berhasil diperbarui.
-              </div>
-            )}
+            {savedRules && <div className="alert-ok">✓ Aturan peminjaman berhasil diperbarui.</div>}
 
             <form onSubmit={handleSaveRules} style={{ display: "flex", flexDirection: "column", gap: 18 }}>
               <div className="rules-grid">
                 <div>
-                  <label className="st-label">Batas Waktu Ambil Buku (pickup_deadline_hours)</label>
+                  <label className="st-label">Batas Waktu Ambil Buku</label>
                   <div className="input-prefix">
                     <input className="st-input" type="number" min="0" value={rules.pickup_deadline_hours} onChange={(e) => setRules({ ...rules, pickup_deadline_hours: e.target.value })} />
                     <span style={{ left: "auto", right: 14 }}>jam</span>
                   </div>
                 </div>
                 <div>
-                  <label className="st-label">Lama Peminjaman (loan_duration_days)</label>
+                  <label className="st-label">Lama Peminjaman</label>
                   <div className="input-prefix">
                     <input className="st-input" type="number" min="0" value={rules.loan_duration_days} onChange={(e) => setRules({ ...rules, loan_duration_days: e.target.value })} />
                     <span style={{ left: "auto", right: 14 }}>hari</span>
@@ -177,14 +229,14 @@ export default function AdminSettingsPage() {
 
               <div className="rules-grid">
                 <div>
-                  <label className="st-label">Denda Terlambat / Hari (fine_per_day)</label>
+                  <label className="st-label">Denda Terlambat / Hari</label>
                   <div className="input-prefix">
                     <span>Rp</span>
                     <input className="st-input" type="number" min="0" value={rules.fine_per_day} onChange={(e) => setRules({ ...rules, fine_per_day: e.target.value })} />
                   </div>
                 </div>
                 <div>
-                  <label className="st-label">Denda Buku Rusak (fine_damaged)</label>
+                  <label className="st-label">Denda Buku Rusak</label>
                   <div className="input-prefix">
                     <span>Rp</span>
                     <input className="st-input" type="number" min="0" value={rules.fine_damaged} onChange={(e) => setRules({ ...rules, fine_damaged: e.target.value })} />
@@ -194,7 +246,7 @@ export default function AdminSettingsPage() {
 
               <div className="rules-grid">
                 <div>
-                  <label className="st-label">Denda Buku Hilang (fine_lost)</label>
+                  <label className="st-label">Denda Buku Hilang</label>
                   <div className="input-prefix">
                     <span>Rp</span>
                     <input className="st-input" type="number" min="0" value={rules.fine_lost} onChange={(e) => setRules({ ...rules, fine_lost: e.target.value })} />

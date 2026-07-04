@@ -109,7 +109,7 @@ export default function KatalogPage() {
           {!loading && filtered.length > 0 && (
             <div className="book-grid">
               {filtered.map((b, i) => (
-                <Link key={b.id} href={`/user/buku/${b.id}`} className="book-card">
+                <Link key={b.id} href={`/user/book/${b.id}`} className="book-card">
                   <div className="book-cover" style={{ background: covers[i % covers.length] }}>
                     {b.cover_url && <img src={b.cover_url} alt={b.title} onError={(e) => { e.target.style.display = "none"; }} />}
                     {Number(b.available_stock) === 0 && (

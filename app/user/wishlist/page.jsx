@@ -106,7 +106,7 @@ export default function WishlistPage() {
                   >
                     <HeartOff size={14} color="#dc2626" />
                   </button>
-                  <Link href={`/user/buku/${b.id}`} className="book-link">
+                  <Link href={`/user/book/${b.id}`} className="book-link">
                     <div className="book-cover" style={{ background: covers[i % covers.length] }}>
                       {b.cover_url && (
                         <img

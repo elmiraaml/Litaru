@@ -9,7 +9,8 @@ export async function POST(request, { params }) {
   if (!admin) return NextResponse.json({ message: "Akses ditolak." }, { status: 403 });
 
   try {
-    const [rows] = await db.query("SELECT * FROM loans WHERE id = ?", [params.id]);
+    const { id } = await params;
+    const [rows] = await db.query("SELECT * FROM loans WHERE id = ?", [id]);
     if (rows.length === 0) return NextResponse.json({ message: "Peminjaman tidak ditemukan." }, { status: 404 });
     const loan = rows[0];
     if (loan.status !== "approved") {
@@ -21,7 +22,7 @@ export async function POST(request, { params }) {
 
     await db.query(
       "UPDATE loans SET status='borrowed', borrowed_at=NOW(), confirmed_by=?, due_date=? WHERE id=?",
-      [admin.id, dueDate, params.id]
+      [admin.id, dueDate, id]
     );
 
     return NextResponse.json({ message: "Pengambilan buku dikonfirmasi.", due_date: dueDate });

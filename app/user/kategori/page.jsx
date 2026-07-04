@@ -28,7 +28,7 @@ export default function Kategori() {
   const getImageSrc = (gambar) => {
     if (!gambar) return "/no-image.png";
     if (gambar.startsWith("http")) return gambar; // eksternal url
-    return `/buku/${gambar}`; // internal upload
+    return `/book/${gambar}`; // internal upload
   };
 
   return (
