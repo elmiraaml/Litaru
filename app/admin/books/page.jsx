@@ -109,7 +109,7 @@ export default function KelolaBukuPage() {
                 {filtered.map((b, i) => (
                   <tr key={b.id}>
                     <td>
-                      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                      <Link href={`/admin/books/${b.id}`} style={{ display: "flex", alignItems: "center", gap: 12, textDecoration: "none" }}>
                         {b.cover_url ? (
                           <img src={b.cover_url} alt={b.title} style={{ width: 34, height: 46, borderRadius: 6, objectFit: "cover", flexShrink: 0 }} />
                         ) : (
@@ -119,7 +119,7 @@ export default function KelolaBukuPage() {
                           <div style={{ fontWeight: 700, color: "#111827" }}>{b.title}</div>
                           <div style={{ fontSize: 11.5, color: "#9ca3af", marginTop: 1 }}>{b.author}</div>
                         </div>
-                      </div>
+                      </Link>
                     </td>
                     <td className="hide-mobile">{b.genre || "—"}</td>
                     <td>
